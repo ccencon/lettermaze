@@ -35,13 +35,13 @@ public:
 	}
 };
 
-bool LetterMatrix::generate(unsigned short length, unsigned short height, std::vector<std::vector<int>>& matrix, std::vector<POS>& route) const
+bool LetterMatrix::generate(unsigned short length, unsigned short height, std::vector<std::vector<char>>& matrix, std::vector<POS>& route) const
 {
 	if(length < 2 || height < 2)
 		return false;
 
-	matrix = std::vector<std::vector<int>> (height, std::vector<int>(length, 0));
-	matrix[0][length - 1] = 1;
+	matrix = std::vector<std::vector<char>> (height, std::vector<char>(length, 0));
+	matrix[0][length - 1] = 'A';
 	pospair_t pp1(POS(length - 1, 0), POS(length - 2, 0));
 	pospair_t pp2(POS(length - 1, 0), POS(length - 2, 1));
 	pospair_t pp3(POS(length - 1, 0), POS(length - 1, 1));
@@ -56,7 +56,7 @@ bool LetterMatrix::generate(unsigned short length, unsigned short height, std::v
 		pp_list.erase(pp_list.begin() + index);
 
 		std::function<void(POS, POS)> func = [&](POS src, POS tar){
-			matrix[tar.GETY()][tar.GETX()] = matrix[src.GETY()][src.GETX()] % 26 + 1;
+			matrix[tar.GETY()][tar.GETX()] = ((unsigned char)matrix[src.GETY()][src.GETX()] - 'A' + 1) % 26 + 'A';
 			for(auto&& arry : DIRECT_OFFSET){
 				int _x = arry[0] + tar.GETX(), _y = arry[1] + tar.GETY();
 				pospair_t _pp(tar, POS(_x, _y));
@@ -77,7 +77,7 @@ bool LetterMatrix::generate(unsigned short length, unsigned short height, std::v
 	return true;
 }
 
-void LetterMatrix::findWayOut(std::vector<std::vector<int>>& matrix, std::vector<POS>& route) const
+void LetterMatrix::findWayOut(std::vector<std::vector<char>>& matrix, std::vector<POS>& route) const
 {
 	int length = matrix[0].size(), height = matrix.size();
 	route.emplace_back(length - 1, 0);
@@ -99,7 +99,7 @@ void LetterMatrix::findWayOut(std::vector<std::vector<int>>& matrix, std::vector
 			continue;
 		if(p_visited.find(POS(_x, _y)) != p_visited.end())
 			continue;
-		if(matrix[_y][_x] != matrix[route[st.size() - 1].GETY()][route[st.size() - 1].GETX()] % 26 + 1)
+		if(matrix[_y][_x] != ((unsigned char)matrix[route[st.size() - 1].GETY()][route[st.size() - 1].GETX()] - 'A' + 1) % 26 + 'A')
 			continue;
 		route.emplace_back(_x, _y);
 		if(_x == 0 && _y == height - 1)
