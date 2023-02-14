@@ -14,14 +14,24 @@ bool operator == (const POS& lhs, const POS& rhs)
 }
 
 template<>
+class std::hash<POS>
+{
+public:
+	size_t operator()(const POS& p) const
+	{
+		return p.GETX() << 16 | p.GETY();
+	}
+};
+
+template<>
 class std::hash<pospair_t>
 {
 public:
 	size_t operator()(const pospair_t& pp) const
 	{
 		if(pp.second.GETY() > pp.first.GETY() || (pp.second.GETY() == pp.first.GETY() && pp.second.GETX() > pp.first.GETX()))
-			return ((size_t)pp.second.GETX() << 48) | ((size_t)pp.second.GETY() << 32) | ((size_t)pp.first.GETX() << 16) | (size_t)pp.first.GETY();
-		return ((size_t)pp.first.GETX() << 48) | ((size_t)pp.first.GETY() << 32) | ((size_t)pp.second.GETX() << 16) | (size_t)pp.second.GETY();
+			return std::hash<decltype(pp.second)>()(pp.second) << 32 | std::hash<decltype(pp.first)>()(pp.first);
+		return std::hash<decltype(pp.first)>()(pp.first) << 32 | std::hash<decltype(pp.second)>()(pp.second);
 	}
 };
 
@@ -30,11 +40,11 @@ bool LetterMatrix::generate(unsigned short length, unsigned short height, std::v
 	if(length < 2 || height < 2)
 		return false;
 
-	matrix = std::vector<std::vector<int>> {height, std::vector<int>{length, 0}};
+	matrix = std::vector<std::vector<int>> (height, std::vector<int>(length, 0));
 	matrix[0][length - 1] = 1;
-	pospair_t pp1(POS(0, length - 1), POS(0, length - 2));
-	pospair_t pp2(POS(0, length - 1), POS(1, length - 2));
-	pospair_t pp3(POS(0, length - 1), POS(1, length - 1));
+	pospair_t pp1(POS(length - 1, 0), POS(length - 2, 0));
+	pospair_t pp2(POS(length - 1, 0), POS(length - 2, 1));
+	pospair_t pp3(POS(length - 1, 0), POS(length - 1, 1));
 	std::vector<pospair_t> pp_list = {pp1, pp2, pp3};
 	std::unordered_set<pospair_t> pp_visited = {pp1, pp2, pp3};
 
@@ -51,7 +61,7 @@ bool LetterMatrix::generate(unsigned short length, unsigned short height, std::v
 				int _x = arry[0] + tar.GETX(), _y = arry[1] + tar.GETY();
 				pospair_t _pp(tar, POS(_x, _y));
 				if(_x >= 0 && _x < length && _y >= 0 && _y < height && pp_visited.find(_pp) == pp_visited.end()){
-					pp_visited.insert(_pp);
+					pp_visited.emplace(_pp);
 					pp_list.emplace_back(_pp);
 				}
 			}
@@ -71,7 +81,8 @@ void LetterMatrix::findWayOut(std::vector<std::vector<int>>& matrix, std::vector
 {
 	int length = matrix[0].size(), height = matrix.size();
 	route.emplace_back(length - 1, 0);
-	std::unordered_set<pospair_t> pp_visited;
+	std::unordered_set<POS> p_visited;
+	p_visited.emplace(length - 1, 0);
 	std::stack<std::size_t> st;
 	st.push(0);
 
@@ -83,14 +94,17 @@ void LetterMatrix::findWayOut(std::vector<std::vector<int>>& matrix, std::vector
 			continue;
 		}
 		st.push(index + 1);
-
-	}
-
-	for(auto&& arry : DIRECT_OFFSET){
-		int _x = arry[0] + length - 1, _y = arry[1] + 0;
-		pospair_t _pp(POS(length - 1, 1), POS(_x, _y));
-		if(_x >= 0 && _x < height && _y >= 0 && _y < length && pp_visited.find(_pp) == pp_visited.end()){
-			pp_visited.insert(_pp);
-		}
+		int _x = route[st.size() - 1].GETX() + DIRECT_OFFSET[index][0], _y = route[st.size() - 1].GETY() + DIRECT_OFFSET[index][1];
+		if(_x < 0 || _x >= length || _y < 0 || _y >= height)
+			continue;
+		if(p_visited.find(POS(_x, _y)) != p_visited.end())
+			continue;
+		if(matrix[_y][_x] != matrix[route[st.size() - 1].GETY()][route[st.size() - 1].GETX()] % 26 + 1)
+			continue;
+		route.emplace_back(_x, _y);
+		if(_x == 0 && _y == height - 1)
+			break;
+		st.push(0);
+		p_visited.emplace(_x, _y);
 	}
 }
