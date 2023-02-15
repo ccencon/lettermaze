@@ -5,6 +5,7 @@
 #include <array>
 #include <string>
 #include <unordered_map>
+#include <functional>
 
 class A4Pictrue{
 private:
@@ -18,16 +19,16 @@ private:
     std::unordered_map<std::string, FILE*> fdc_r;
 
     FILE* getReadOnlyFile(const std::string& filename);
-    using A4RGB = std::array<std::array<unsigned char, 3> ,LENGTH_PIXES * WIDTH_PIXES>;
-    void RGB(A4RGB& arry, const std::vector<std::vector<char>>& matrix);
-    void RGB(A4RGB& arry, const std::vector<POS>& route);
-    void outputPPM(const std::string& filename, const A4RGB& arry);
-    void outputBMP(const std::string& filename, const A4RGB& arry);
+    std::string getFileNameSuffix(const std::string& filename) const;
+    void fileNameHandler(std::string& filename);
+
+    using rgb_fun_t = std::function<unsigned char*(int, int)>;
+    void outputPPM(const std::string& filename, rgb_fun_t rgb_f);
+    void outputBMP(const std::string& filename, rgb_fun_t rgb_f);
 public:
     static A4Pictrue& instance();
 
-    void outputPPM(std::string name, const std::vector<std::vector<char>>& matrix, const std::vector<POS>& route);
-    void outputBMP(std::string name, const std::vector<std::vector<char>>& matrix, const std::vector<POS>& route);
+    void output_lm(std::string filename, const std::vector<std::vector<char>>& matrix, const std::vector<POS>& route);
 };
 
 #endif

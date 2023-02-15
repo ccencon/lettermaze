@@ -9,10 +9,11 @@ int main()
 	std::vector<POS> route;
 	lm.generate(23, 16, matrix, route);
 	try{
-		A4Pictrue::instance().outputPPM("", matrix, route);
+		A4Pictrue::instance().output_lm("lm.PPM", matrix, route);
 	}
 	catch(std::exception& e){
 		std::cout<<e.what()<<std::endl;
+		exit(-1);
 	}
 
 #ifdef DEBUG
