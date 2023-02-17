@@ -1,6 +1,5 @@
 #include "lettermatrix.hpp"
 #include <array>
-#include <cstring>
 #include <random>
 #include <unordered_set>
 #include <functional>
@@ -13,27 +12,17 @@ bool operator == (const POS& lhs, const POS& rhs)
 	return lhs.GETX() == rhs.GETX() && lhs.GETY() == rhs.GETY();
 }
 
-template<>
-class std::hash<POS>
+size_t std::hash<POS>::operator()(const POS& p) const
 {
-public:
-	size_t operator()(const POS& p) const
-	{
-		return p.GETX() << 16 | p.GETY();
-	}
-};
+	return p.GETX() << 16 | p.GETY();
+}
 
-template<>
-class std::hash<pospair_t>
+size_t std::hash<pospair_t>::operator()(const pospair_t& pp) const
 {
-public:
-	size_t operator()(const pospair_t& pp) const
-	{
-		if(pp.second.GETY() > pp.first.GETY() || (pp.second.GETY() == pp.first.GETY() && pp.second.GETX() > pp.first.GETX()))
-			return std::hash<decltype(pp.second)>()(pp.second) << 32 | std::hash<decltype(pp.first)>()(pp.first);
-		return std::hash<decltype(pp.first)>()(pp.first) << 32 | std::hash<decltype(pp.second)>()(pp.second);
-	}
-};
+	if(pp.second.GETY() > pp.first.GETY() || (pp.second.GETY() == pp.first.GETY() && pp.second.GETX() > pp.first.GETX()))
+		return std::hash<decltype(pp.second)>()(pp.second) << 32 | std::hash<decltype(pp.first)>()(pp.first);
+	return std::hash<decltype(pp.first)>()(pp.first) << 32 | std::hash<decltype(pp.second)>()(pp.second);
+}
 
 bool LetterMatrix::generate(unsigned short length, unsigned short height, std::vector<std::vector<char>>& matrix, std::vector<POS>& route) const
 {

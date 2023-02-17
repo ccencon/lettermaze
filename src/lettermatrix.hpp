@@ -2,7 +2,6 @@
 #define __LETTERMATRIX__
 
 #include <vector>
-#include <climits>
 
 class POS{
 	unsigned short x;
@@ -14,6 +13,22 @@ public:
 	bool operator == (const POS& rhs) { return x == rhs.x && y == rhs.y; }
 };
 using pospair_t = std::pair<POS, POS>;
+
+bool operator == (const POS& lhs, const POS& rhs);
+
+template<>
+class std::hash<POS>
+{
+public:
+	size_t operator()(const POS& p) const;
+};
+
+template<>
+class std::hash<pospair_t>
+{
+public:
+	size_t operator()(const pospair_t& pp) const;
+};
 
 class LetterMatrix{
 private:

@@ -1,14 +1,46 @@
 #include "A4picture.hpp"
+#include "system_.hpp"
 #include <stdexcept>
 #include <climits>
 #include <algorithm>
 #include <unordered_set>
 #include <unistd.h>
 
+const char* A4BMP24MetaInfo::getInfoString() const
+{
+    static char info[14] = "\0";
+    SYS::little_ext_transform(info, (const char*)&(this->bfType), 2);
+    SYS::little_ext_transform(info + 2, (const char*)&(this->bfSize), 4);
+    SYS::little_ext_transform(info + 6, (const char*)&(this->bfReserved1), 2);
+    SYS::little_ext_transform(info + 8, (const char*)&(this->bfReserved2), 2);
+    SYS::little_ext_transform(info + 10, (const char*)&(this->bfOffBits), 4);
+
+    return info;
+}
+
+const char* A4BMP24HeaderInfo::getInfoString() const
+{
+    static char info[40] = "\0";
+    SYS::little_ext_transform(info, (const char*)&(this->biSize), 4);
+    SYS::little_ext_transform(info + 4, (const char*)&(this->biWidth), 4);
+    SYS::little_ext_transform(info + 8, (const char*)&(this->biHeight), 4);
+    SYS::little_ext_transform(info + 12, (const char*)&(this->biPlanes), 2);
+    SYS::little_ext_transform(info + 14, (const char*)&(this->biBitCount), 2);
+    SYS::little_ext_transform(info + 16, (const char*)&(this->biCompression), 4);
+    SYS::little_ext_transform(info + 20, (const char*)&(this->biSizeImages), 4);
+    SYS::little_ext_transform(info + 24, (const char*)&(this->biXPelsPerMeter), 4);
+    SYS::little_ext_transform(info + 28, (const char*)&(this->biYPelsPerMeter), 4);
+    SYS::little_ext_transform(info + 32, (const char*)&(this->biClrUsed), 4);
+    SYS::little_ext_transform(info + 36, (const char*)&(this->biClrImportant), 4);
+    
+    return info;
+}
+
 A4Pictrue::~A4Pictrue()
 {
     for(auto p : fdc_r)
         fclose(p.second);
+    fflush(nullptr);
 }
 
 A4Pictrue& A4Pictrue::instance()
@@ -36,7 +68,7 @@ std::string A4Pictrue::getFileNameSuffix(const std::string& filename) const
     return suffix;
 }
 
-void A4Pictrue::fileNameHandler(std::string& filename)
+void A4Pictrue::fileNameHandler(std::string& filename) const
 {
     static const std::unordered_set<char> ILLEGAL_CHAR = {'\\', '/', ':', '*', '?', '"', '<', '>', '|'};
     if(filename.empty())
@@ -72,6 +104,15 @@ void A4Pictrue::fileNameHandler(std::string& filename)
     filename += "." + suffix;
 }
 
+void A4Pictrue::writeA424BitBMPHeader(FILE* file) const
+{
+    static A4BMP24MetaInfo meta;
+    static A4BMP24HeaderInfo header;
+    static std::string info = std::string(meta.getInfoString(), 14) + std::string(header.getInfoString(), 40);
+    if(fwrite(info.data(), 1, 54, file) < 54)
+        throw std::runtime_error("bmp write meta header info failed");
+}
+
 void A4Pictrue::outputPPM(const std::string& filename, rgb_fun_t rgb_f)
 {
     FILE* file = fopen(filename.data(), "wb");
@@ -91,7 +132,34 @@ void A4Pictrue::outputPPM(const std::string& filename, rgb_fun_t rgb_f)
 
 void A4Pictrue::outputBMP(const std::string& filename, rgb_fun_t rgb_f)
 {
+    FILE* file = fopen(filename.data(), "wb");
+    if(!file)
+        throw std::runtime_error("open file(" + filename + ") failed");
+    writeA424BitBMPHeader(file);
+    for(int w = WIDTH_PIXES; w >= 1; w--){
+        for(int l = 1; l <= LENGTH_PIXES; l++){
+            unsigned char* color = rgb_f(w, l);
+            static unsigned char tmp[3];
+            tmp[0] = color[2]; tmp[1] = color[1]; tmp[2] = color[0];
+            if(fwrite(tmp, 1, 3, file) < 3)
+                throw std::runtime_error("BMP write fixels faild->" + filename);
+        }
+        static unsigned char c = 0;
+        if(fwrite(&c, 1, 1, file) < 1)
+            throw std::runtime_error("BMP byte aligned faild->" + filename);
+    }
+    fclose(file);
+}
 
+void A4Pictrue::output(const std::string& filename, rgb_fun_t rgb_f)
+{
+    std::string suffix = getFileNameSuffix(filename);
+    if(suffix == "ppm")
+        outputPPM(filename, rgb_f);
+    else if(suffix == "bmp")
+        outputBMP(filename, rgb_f);
+    else
+        throw std::runtime_error("." + suffix + " is not supported");
 }
 
 void A4Pictrue::output_lm(std::string filename, const std::vector<std::vector<char>>& matrix, const std::vector<POS>& route)
@@ -102,8 +170,8 @@ void A4Pictrue::output_lm(std::string filename, const std::vector<std::vector<ch
     static const int SPACE_PIXELS = 80;//网格宽度
     static const int COMPOSE_PIXELS = LINE_PIXELS + SPACE_PIXELS;
 
-    if(matrix.empty() || matrix[0].empty())
-        throw std::runtime_error("letter matrix empty");
+    if(matrix.empty() || matrix[0].empty() || route.empty())
+        throw std::runtime_error("letter matrix or route empty");
     int length = matrix[0].size(), width = matrix.size();
     int frame_pixels_l = COMPOSE_PIXELS * length + LINE_PIXELS, frame_pixels_w = COMPOSE_PIXELS * width + LINE_PIXELS;
     if(frame_pixels_l > LENGTH_PIXES)
@@ -115,7 +183,8 @@ void A4Pictrue::output_lm(std::string filename, const std::vector<std::vector<ch
     int right_blank_pixels = LENGTH_PIXES - frame_pixels_l - left_blank_pixels;
     int up_blank_pixels = (WIDTH_PIXES - frame_pixels_w) / 2;
     int down_blank_pixels = WIDTH_PIXES - frame_pixels_w - up_blank_pixels;
-    rgb_fun_t func = [&](int w, int l){
+    //字母迷宫
+    rgb_fun_t func_letter = [&](int w, int l){
         static unsigned char color[3];
         //边界留空
         if(w <= up_blank_pixels || w > WIDTH_PIXES - down_blank_pixels || l <= left_blank_pixels || l > LENGTH_PIXES - right_blank_pixels){
@@ -137,17 +206,27 @@ void A4Pictrue::output_lm(std::string filename, const std::vector<std::vector<ch
         _w = (w - up_blank_pixels - LINE_PIXELS - 1) % COMPOSE_PIXELS;
         _l = (l - left_blank_pixels - LINE_PIXELS - 1) % COMPOSE_PIXELS;
         fseek(file, 54 + ((SPACE_PIXELS - 1 - _w) * SPACE_PIXELS + _l) * 3, SEEK_SET);
-        if(fread(color, 1, 1, file) < 1)
+        if(fread(color, 1, 3, file) < 3)
             throw std::runtime_error("fread file(" + filename + ") failed");
-        color[1] = color[0]; color[2] = color[0] == 255 ? 200 : color[0];
+        color[2] = color[2] == 255 ? 200 : color[2];
+        if((i_w == 0 && i_l == length - 1) || (i_w == width - 1 && i_l == 0))
+            color[2] = color[2] == 200 ? 0 : color[2];
         return color;
     };
+    //字母迷宫-路径
+    std::unordered_set<POS> pos_set;
+    for(std::size_t i = 1; i < route.size() - 1; i++)
+        pos_set.emplace(route[i]);
+    rgb_fun_t func_route = [&](int w, int l){
+        unsigned char* ret = func_letter(w, l);
+        int _w = w - up_blank_pixels, _l = l - left_blank_pixels;
+        int i_w = (_w - 1) / COMPOSE_PIXELS, i_l = (_l - 1) / COMPOSE_PIXELS;
+        if(_w >= 0 && _l >= 0 && pos_set.find(POS(i_l, i_w)) != pos_set.end())
+            ret[2] = ret[2] == 200 ? 0 : ret[2];
+        return ret;
+    };
 
-    std::string suffix = getFileNameSuffix(filename);
-    if(suffix == "ppm")
-        outputPPM(filename, func);
-    else if(suffix == "bmp")
-        outputBMP(filename, func);
-    else
-        throw std::runtime_error("." + suffix + " is not supported");
+    output(filename, func_letter);
+    filename.insert(filename.size() - getFileNameSuffix(filename).size() - 1, "_route");
+    output(filename, func_route);
 }
