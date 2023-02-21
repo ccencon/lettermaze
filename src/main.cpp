@@ -36,5 +36,9 @@ int main()
 	cout<<endl;
 #endif
 
+#ifdef WINDOWS
+	system("pause");
+#endif
+
 	return 0;
 }
