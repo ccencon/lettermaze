@@ -9,7 +9,7 @@ bool isLittleEndian()
     return ((unsigned char*)(&a))[0] == 0x00;
 }
 
-extern void little_ext_transform(char* tar, const char* src, long long size)
+void little_ext_transform(char* tar, const char* src, long long size)
 {
     if(SYS::isLittleEndian()){
         ::memcpy(tar, src, size);
