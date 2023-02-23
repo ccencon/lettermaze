@@ -18,6 +18,9 @@ int main()
 	}
 	catch(std::exception& e){
 		cout<<e.what()<<endl;
+#ifdef WINDOWS
+		system("pause");
+#endif
 		exit(-1);
 	}
 
